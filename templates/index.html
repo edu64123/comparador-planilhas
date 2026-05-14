@@ -1,192 +1,86 @@
-<!DOCTYPE html>
 <html lang="pt-br">
-
 <head>
-
     <meta charset="UTF-8">
-
-    <title>
-        Comparador de Planilhas
-    </title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comparador de Planilhas</title>
 
     <style>
-
-        *{
-            margin:0;
-            padding:0;
-            box-sizing:border-box;
-            font-family:Arial;
+        body {
+            font-family: Arial, sans-serif;
+            background: #111827;
+            color: white;
+            margin: 0;
+            padding: 40px;
         }
 
-        body{
-            background:#f4f4f4;
-            padding:40px;
+        .container {
+            max-width: 900px;
+            margin: auto;
+            background: #1f2937;
+            padding: 30px;
+            border-radius: 12px;
         }
 
-        .container{
-            max-width:1200px;
-            margin:auto;
-            background:white;
-            padding:30px;
-            border-radius:10px;
-            box-shadow:0 0 10px rgba(0,0,0,0.1);
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
         }
 
-        h1{
-            margin-bottom:20px;
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
         }
 
-        form{
-            margin-bottom:30px;
+        input[type=file] {
+            background: #374151;
+            padding: 10px;
+            border-radius: 8px;
+            color: white;
         }
 
-        input{
-            margin:10px 0;
+        button {
+            background: #2563eb;
+            border: none;
+            padding: 14px;
+            border-radius: 8px;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
         }
 
-        button{
-            padding:12px 20px;
-            background:#007bff;
-            color:white;
-            border:none;
-            border-radius:5px;
-            cursor:pointer;
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 30px;
         }
 
-        button:hover{
-            background:#0056b3;
+        table th,
+        table td {
+            border: 1px solid #374151;
+            padding: 12px;
+            text-align: left;
         }
 
-        table{
-            width:100%;
-            border-collapse:collapse;
-            margin-top:20px;
+        table th {
+            background: #2563eb;
         }
 
-        th, td{
-            border:1px solid #ccc;
-            padding:12px;
-            text-align:left;
+        .erro {
+            margin-top: 20px;
+            background: #7f1d1d;
+            padding: 15px;
+            border-radius: 8px;
         }
 
-        th{
-            background:#007bff;
-            color:white;
+        .sucesso {
+            margin-top: 20px;
+            background: #14532d;
+            padding: 15px;
+            border-radius: 8px;
         }
-
-        .erro{
-            color:red;
-            margin-top:20px;
-        }
-
-        .ok{
-            color:green;
-            margin-top:20px;
-        }
-
     </style>
-
 </head>
-
 <body>
 
-<div class="container">
-
-    <h1>
-        Comparador Inteligente de Planilhas
-    </h1>
-
-    <form method="POST" enctype="multipart/form-data">
-
-        <label>
-            Planilha 1
-        </label>
-
-        <br>
-
-        <input
-            type="file"
-            name="planilha1"
-            required
-        >
-
-        <br><br>
-
-        <label>
-            Planilha 2
-        </label>
-
-        <br>
-
-        <input
-            type="file"
-            name="planilha2"
-            required
-        >
-
-        <br><br>
-
-        <button type="submit">
-            Comparar
-        </button>
-
-    </form>
-
-    {% if divergencias %}
-
-        <h2 class="erro">
-            Divergências Encontradas
-        </h2>
-
-        <table>
-
-            <tr>
-                <th>CPF</th>
-                <th>Nome</th>
-                <th>Problema</th>
-                <th>Valor Planilha 1</th>
-                <th>Valor Planilha 2</th>
-            </tr>
-
-            {% for item in divergencias %}
-
-            <tr>
-
-                <td>
-                    {{ item.cpf }}
-                </td>
-
-                <td>
-                    {{ item.nome }}
-                </td>
-
-                <td>
-                    {{ item.tipo }}
-                </td>
-
-                <td>
-                    {{ item.valor1 }}
-                </td>
-
-                <td>
-                    {{ item.valor2 }}
-                </td>
-
-            </tr>
-
-            {% endfor %}
-
-        </table>
-
-    {% elif comparado %}
-
-        <h2 class="ok">
-            Nenhuma divergência encontrada
-        </h2>
-
-    {% endif %}
-
-</div>
-
-</body>
 </html>

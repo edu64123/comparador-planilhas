@@ -1,150 +1,80 @@
 from flask import Flask, render_template, request
-import pandas as pd
-import os
 
 app = Flask(__name__)
 
 UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+
+def encontrar_coluna(df, possibilidades):
+    colunas = {col.lower().strip(): col for col in df.columns}
+
+    for possibilidade in possibilidades:
+        for coluna_lower, coluna_original in colunas.items():
+            if possibilidade in coluna_lower:
+                return coluna_original
+
+    return None
 
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
-
-    divergencias = []
-    comparado = False
+    resultado = None
+    erro = None
 
     if request.method == 'POST':
+        try:
+            arquivo1 = request.files['planilha1']
+            arquivo2 = request.files['planilha2']
 
-        comparado = True
+            caminho1 = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(arquivo1.filename))
+            caminho2 = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(arquivo2.filename))
 
-        arquivo1 = request.files['planilha1']
-        arquivo2 = request.files['planilha2']
+            arquivo1.save(caminho1)
+            arquivo2.save(caminho2)
 
-        caminho1 = os.path.join(
-            app.config['UPLOAD_FOLDER'],
-            arquivo1.filename
-        )
+            df1 = pd.read_excel(caminho1)
+            df2 = pd.read_excel(caminho2)
 
-        caminho2 = os.path.join(
-            app.config['UPLOAD_FOLDER'],
-            arquivo2.filename
-        )
+            id1 = encontrar_coluna(df1, ['cpf', 'matricula', 'funcionario', 'codigo', 'id'])
+            id2 = encontrar_coluna(df2, ['cpf', 'matricula', 'funcionario', 'codigo', 'id'])
 
-        arquivo1.save(caminho1)
-        arquivo2.save(caminho2)
+            valor1 = encontrar_coluna(df1, ['valor', 'salario', 'líquido', 'liquido', 'pagamento', 'total'])
+            valor2 = encontrar_coluna(df2, ['valor', 'salario', 'líquido', 'liquido', 'pagamento', 'total'])
 
-        # LEITURA DAS PLANILHAS
-        df1 = pd.read_excel(caminho1)
-        df2 = pd.read_excel(caminho2)
+            nome1 = encontrar_coluna(df1, ['nome', 'funcionario', 'colaborador'])
+            nome2 = encontrar_coluna(df2, ['nome', 'funcionario', 'colaborador'])
 
-        # ==========================
-        # CONFIGURE AQUI
-        # ==========================
+            if not id1 or not id2:
+                erro = 'Não foi possível identificar a coluna de identificação.'
+                return render_template('index.html', erro=erro)
 
-        coluna_id = 'CPF'
-        coluna_nome = 'NOME'
-        coluna_valor = 'VALOR'
+            if not valor1 or not valor2:
+                erro = 'Não foi possível identificar a coluna de valores.'
+                return render_template('index.html', erro=erro)
 
-        # ==========================
-        # LIMPEZA DOS DADOS
-        # ==========================
+            df1 = df1[[id1, valor1] + ([nome1] if nome1 else [])]
+            df2 = df2[[id2, valor2] + ([nome2] if nome2 else [])]
 
-        df1[coluna_id] = (
-            df1[coluna_id]
-            .astype(str)
-            .str.replace('.', '', regex=False)
-            .str.replace('-', '', regex=False)
-            .str.strip()
-        )
+            df1.columns = ['ID', 'VALOR_1'] + (['NOME'] if nome1 else [])
+            df2.columns = ['ID', 'VALOR_2'] + (['NOME_2'] if nome2 else [])
 
-        df2[coluna_id] = (
-            df2[coluna_id]
-            .astype(str)
-            .str.replace('.', '', regex=False)
-            .str.replace('-', '', regex=False)
-            .str.strip()
-        )
+            comparacao = pd.merge(df1, df2, on='ID', how='outer')
 
-        # VALORES NUMÉRICOS
+            comparacao['VALOR_1'] = pd.to_numeric(comparacao['VALOR_1'], errors='coerce').fillna(0)
+            comparacao['VALOR_2'] = pd.to_numeric(comparacao['VALOR_2'], errors='coerce').fillna(0)
 
-        df1[coluna_valor] = pd.to_numeric(
-            df1[coluna_valor],
-            errors='coerce'
-        )
+            comparacao['DIFERENCA'] = comparacao['VALOR_1'] - comparacao['VALOR_2']
 
-        df2[coluna_valor] = pd.to_numeric(
-            df2[coluna_valor],
-            errors='coerce'
-        )
+            divergencias = comparacao[comparacao['DIFERENCA'] != 0]
 
-        # ==========================
-        # COMPARAÇÃO
-        # ==========================
+            resultado = divergencias.to_dict(orient='records')
 
-        merged = pd.merge(
-            df1,
-            df2,
-            on=coluna_id,
-            suffixes=('_1', '_2'),
-            how='outer'
-        )
+        except Exception as e:
+            erro = str(e)
 
-        for _, row in merged.iterrows():
-
-            valor1 = row.get(f'{coluna_valor}_1')
-            valor2 = row.get(f'{coluna_valor}_2')
-
-            nome1 = row.get(f'{coluna_nome}_1')
-            nome2 = row.get(f'{coluna_nome}_2')
-
-            nome = nome1 if pd.notna(nome1) else nome2
-
-            # funcionário ausente
-
-            if pd.isna(valor1):
-
-                divergencias.append({
-                    'cpf': row[coluna_id],
-                    'nome': nome,
-                    'tipo': 'Não existe na planilha 1',
-                    'valor1': '-',
-                    'valor2': valor2
-                })
-
-                continue
-
-            if pd.isna(valor2):
-
-                divergencias.append({
-                    'cpf': row[coluna_id],
-                    'nome': nome,
-                    'tipo': 'Não existe na planilha 2',
-                    'valor1': valor1,
-                    'valor2': '-'
-                })
-
-                continue
-
-            # valor diferente
-
-            if valor1 != valor2:
-
-                divergencias.append({
-                    'cpf': row[coluna_id],
-                    'nome': nome,
-                    'tipo': 'Valor divergente',
-                    'valor1': valor1,
-                    'valor2': valor2
-                })
-
-    return render_template(
-        'index.html',
-        divergencias=divergencias,
-        comparado=comparado
-    )
+    return render_template('index.html', resultado=resultado, erro=erro)
 
 
 if __name__ == '__main__':
