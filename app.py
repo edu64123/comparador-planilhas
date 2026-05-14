@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request
 import pandas as pd
 import os
+import gc
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
@@ -15,12 +16,12 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# até 100MB
-app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
+# limite 20MB
+app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024
 
 
 # =========================
-# FUNÇÃO PARA ACHAR COLUNAS
+# IDENTIFICAR COLUNAS
 # =========================
 
 def encontrar_coluna(df, possibilidades):
@@ -58,7 +59,9 @@ def index():
             arquivo2 = request.files['planilha2']
 
             if not arquivo1 or not arquivo2:
-                erro = 'Envie as duas planilhas.'
+
+                erro = 'Envie duas planilhas.'
+
                 return render_template(
                     'index.html',
                     erro=erro
@@ -82,29 +85,37 @@ def index():
             # =========================
 
             if caminho1.endswith('.csv'):
+
                 df1 = pd.read_csv(
                     caminho1,
                     low_memory=False
                 )
+
             else:
+
                 df1 = pd.read_excel(
                     caminho1,
-                    engine='openpyxl'
+                    engine='openpyxl',
+                    nrows=30000
                 )
 
             if caminho2.endswith('.csv'):
+
                 df2 = pd.read_csv(
                     caminho2,
                     low_memory=False
                 )
+
             else:
+
                 df2 = pd.read_excel(
                     caminho2,
-                    engine='openpyxl'
+                    engine='openpyxl',
+                    nrows=30000
                 )
 
             # =========================
-            # IDENTIFICAÇÃO AUTOMÁTICA
+            # DETECTA COLUNAS
             # =========================
 
             id1 = encontrar_coluna(
@@ -153,33 +164,15 @@ def index():
                 ]
             )
 
-            nome1 = encontrar_coluna(
-                df1,
-                [
-                    'nome',
-                    'funcionario',
-                    'colaborador'
-                ]
-            )
-
-            nome2 = encontrar_coluna(
-                df2,
-                [
-                    'nome',
-                    'funcionario',
-                    'colaborador'
-                ]
-            )
-
             # =========================
-            # VALIDAÇÃO
+            # VALIDAR
             # =========================
 
             if not id1 or not id2:
 
                 erro = (
-                    'Não foi possível identificar '
-                    'a coluna de identificação.'
+                    'Não foi possível '
+                    'identificar coluna de ID.'
                 )
 
                 return render_template(
@@ -190,8 +183,8 @@ def index():
             if not valor1 or not valor2:
 
                 erro = (
-                    'Não foi possível identificar '
-                    'a coluna de valores.'
+                    'Não foi possível '
+                    'identificar coluna de valor.'
                 )
 
                 return render_template(
@@ -200,31 +193,29 @@ def index():
                 )
 
             # =========================
-            # LIMPEZA
+            # FILTRAR
             # =========================
 
             df1 = df1[
-                [id1, valor1] +
-                ([nome1] if nome1 else [])
+                [id1, valor1]
             ]
 
             df2 = df2[
-                [id2, valor2] +
-                ([nome2] if nome2 else [])
+                [id2, valor2]
             ]
 
-            df1.columns = (
-                ['ID', 'VALOR_1'] +
-                (['NOME'] if nome1 else [])
-            )
+            df1.columns = [
+                'ID',
+                'VALOR_1'
+            ]
 
-            df2.columns = (
-                ['ID', 'VALOR_2'] +
-                (['NOME_2'] if nome2 else [])
-            )
+            df2.columns = [
+                'ID',
+                'VALOR_2'
+            ]
 
             # =========================
-            # LIMPEZA DE IDS
+            # LIMPAR IDs
             # =========================
 
             df1['ID'] = (
@@ -240,7 +231,7 @@ def index():
             )
 
             # =========================
-            # VALORES NUMÉRICOS
+            # CONVERTER VALORES
             # =========================
 
             df1['VALOR_1'] = pd.to_numeric(
@@ -254,7 +245,7 @@ def index():
             ).fillna(0)
 
             # =========================
-            # MERGE
+            # COMPARAÇÃO
             # =========================
 
             comparacao = pd.merge(
@@ -263,6 +254,12 @@ def index():
                 on='ID',
                 how='outer'
             )
+
+            # libera memória
+            del df1
+            del df2
+
+            gc.collect()
 
             comparacao['VALOR_1'] = (
                 comparacao['VALOR_1']
@@ -280,20 +277,28 @@ def index():
                 comparacao['VALOR_2']
             )
 
-            # =========================
-            # FILTRA DIFERENÇAS
-            # =========================
-
             divergencias = comparacao[
                 comparacao['DIFERENCA'] != 0
             ]
 
-            # limita resultados pra não explodir RAM
-            divergencias = divergencias.head(5000)
+            # limita saída
+            divergencias = divergencias.head(500)
 
-            resultado = divergencias.to_dict(
+            resultado = divergencias[
+                [
+                    'ID',
+                    'VALOR_1',
+                    'VALOR_2',
+                    'DIFERENCA'
+                ]
+            ].to_dict(
                 orient='records'
             )
+
+            del comparacao
+            del divergencias
+
+            gc.collect()
 
         except Exception as e:
 
